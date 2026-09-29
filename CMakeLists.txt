@@ -141,7 +141,10 @@ else()
   set(BUILD_NAME Release)
 endif()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${OUTPUT_NAME})
+set_target_properties(${PROJECT_NAME} PROPERTIES
+  OUTPUT_NAME ${OUTPUT_NAME}
+  ARCHIVE_OUTPUT_NAME ${PROJECT_NAME}
+)
 
 add_custom_command(
   TARGET ${PROJECT_NAME}
