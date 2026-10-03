@@ -198,6 +198,14 @@ RE::NiPoint3 getCameraPosition(RE::NiAVObject* camera, RE::NiAVObject* root)
     return root->world.translate + RE::NiQuaternion(root->world.rotate) * (position * root->world.scale);
 }
 
+glm::mat4 getFirstPersonEyeTransform(glm::mat4 head, const glm::mat4& standingOrigin, const glm::mat4& eye)
+{
+    head[3].x -= standingOrigin[3].x;
+    head[3].y -= standingOrigin[3].y;
+    head[3].z -= standingOrigin[3].z;
+    return to_havok_space(glm::inverse(glm::extractMatrixRotation(head)) * head * eye);
+}
+
 bool isCameraAttachment(RE::NiAVObject* object, RE::NiAVObject* camera, RE::NiAVObject* root)
 {
     for (auto branch = camera; branch && branch->parent != root; branch = branch->parent) {
@@ -215,13 +223,21 @@ void UpdateAttachment(RE::NiAVObject* object, RE::NiAVObject* root, RE::NiAVObje
     }
     static auto vr              = VR::get();
     const auto  native_rotation = RE::NiQuaternion(root->world.rotate).Normalize();
-    const auto  head            = glm::normalize(glm::quat_cast(to_havok_space(vr->get_rotation(0))));
+    const auto  head_transform  = vr->get_transform(0);
+    const auto  head            = glm::normalize(glm::quat_cast(to_havok_space(head_transform)));
     const auto  view_rotation   = composeViewRotation(native_rotation, RE::NiQuaternion(head.w, head.x, head.y, head.z), applied_head_yaw.load(std::memory_order_relaxed));
     const auto  correction      = (view_rotation * native_rotation.InvertVector()).Normalize();
     const auto  origin          = getCameraPosition(camera, root);
     const auto  rotation        = correction * RE::NiQuaternion(object->world.rotate).Normalize();
     rotation.ToMatrix(object->world.rotate);
     object->world.translate = origin + correction * (object->world.translate - origin);
+
+    if (GameFlow::isAimingDownSights() && object->parent == root && object->name == "COM") {
+        const auto aiming_eye = ModConstants::dominantEye == 0 ? VRRuntime::Eye::RIGHT : VRRuntime::Eye::LEFT;
+        const auto eye        = vr->get_current_eye_transform(vr->get_current_render_eye() != aiming_eye);
+        const auto offset     = getFirstPersonEyeTransform(head_transform, vr->get_transform_offset(), eye)[3];
+        object->world.translate = object->world.translate + view_rotation * RE::NiPoint3{ offset.x, offset.y, offset.z };
+    }
 }
 
 void CreationEngineCameraManager::onNiAVObjectUpdateWorld(RE::NiAVObject* obj, RE::NiUpdateData* a_data)
@@ -284,13 +300,11 @@ CreationEngineCameraManager::onScaleformSetViewPortInternal(uintptr_t *thisMovie
     auto width_multiplier = settings.hud_scale;
     auto height_multiplier = settings.hud_scale;
 
-    // Implement offset based on dominant eye and menu-specific offset_value
+    // Keep the dominant eye fixed; offset the other eye for stereo depth.
     auto current_eye = vr->get_current_render_eye();
     if (ModConstants::dominantEye == 1) {
-        // Dominant eye is right
         offset_left = (current_eye == VRRuntime::Eye::RIGHT) ? -settings.perspective : 0;
     } else {
-        // Dominant eye is left
         offset_left = (current_eye == VRRuntime::Eye::LEFT) ? settings.perspective : 0;
     }
 
@@ -384,14 +398,7 @@ void CreationEngineCameraManager::UpdateWorldCamera() {
     }
 
     if(!GameFlow::isImmovable() && !GameFlow::isControlledByAI() && GameFlow::isInFirstPerson()) {
-        auto hmd_transform = vr->get_transform(0);
-        auto standing_origin = vr->get_transform_offset();
-        hmd_transform[3].x -= standing_origin[3].x;
-        hmd_transform[3].y -= standing_origin[3].y;
-        hmd_transform[3].z -= standing_origin[3].z;
-        auto eye = vr->get_current_eye_transform();
-        hmd_transform      = glm::inverse(glm::extractMatrixRotation(hmd_transform)) * hmd_transform * eye;
-        hmd_transform = to_havok_space(hmd_transform);
+        auto hmd_transform             = getFirstPersonEyeTransform(vr->get_transform(0), vr->get_transform_offset(), vr->get_current_eye_transform());
         worldCamera->local.rotate = originalRotation * *(RE::NiMatrix3*) & hmd_transform;
         worldCamera->local.translate.x = hmd_transform[3][0];
         worldCamera->local.translate.y = hmd_transform[3][1];
