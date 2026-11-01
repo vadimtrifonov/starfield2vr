@@ -24,7 +24,7 @@ namespace GameFlow
             bool scaleformViewportHook{true};
             bool preventZoom{false};
             bool alternativeJoyLayout{false};
-            bool decoupledPitch{false};
+            bool decoupledPitch{true};
             bool pawnControl{true};
         } internalSettings{};
         DebugData debugData{};

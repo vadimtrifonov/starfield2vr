@@ -1,10 +1,11 @@
 #pragma once
+#include <RE/F/FirstPersonState.h>
 #include <RE/N/NiCamera.h>
 #include <RE/N/NiMatrix3.h>
+#include <RE/N/NiQuaternion.h>
 #include <glm/vec3.hpp>
 #include <memory/FunctionHook.h>
-#include <RE/F/FirstPersonState.h>
-#include <RE/N/NiQuaternion.h>
+#include <utility/PointerHook.hpp>
 
 #include "math/Math.hpp"
 
@@ -16,6 +17,7 @@ struct Matrix6x4f
 namespace RE
 {
     struct NiUpdateData;
+    class PlayerCharacter;
 }
 
 namespace CreationEngine
@@ -80,7 +82,7 @@ namespace Scaleform::Gfx
 class CreationEngineCameraManager
 {
 public:
-    void InstallHooks();
+    bool InstallHooks();
 
     inline static CreationEngineCameraManager* Get()
     {
@@ -118,6 +120,12 @@ private:
     std::unique_ptr<FunctionHook> m_onSetViewportHook{};
     std::unique_ptr<FunctionHook> m_onSetCameraScissorHook{};
     std::unique_ptr<FunctionHook> m_onGetCameraRotationHook{};
+    std::unique_ptr<PointerHook>  m_onApplyLookPitchHook{ };
+    using SetAngle = void (*)(RE::PlayerCharacter*, float);
+    SetAngle                      m_applyLookPitch{ };
+    SetAngle                      m_setLookPitch{ };
+    SetAngle                      m_setYaw{ };
+    static void                   onApplyLookPitch(RE::PlayerCharacter* actor, float pitchDelta);
     std::unique_ptr<FunctionHook> m_onFirstPersonStateUpdatePitchHook{};
 //    std::unique_ptr<FunctionHook> m_onGetCameraLocationHook{};
 //    void                          UpdateCamera(RE::NiCamera* a_camera, RE::NiUpdateData* a_data);

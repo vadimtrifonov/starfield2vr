@@ -1,6 +1,7 @@
 #pragma once
 #include "ScanHelper.h"
 #include "offsets_table.h"
+#include <rttidata.h>
 
 using namespace MemoryScan;
 
@@ -23,6 +24,35 @@ namespace Steam::MemoryOffsets
 //            return val;
 //        }
     } // namespace Setting
+
+    namespace PlayerCharacter
+    {
+        inline void** ApplyLookPitchSlot()
+        {
+            // PlayerCharacter's secondary event-sink tables precede its primary vtable.
+            for (auto table : utility::rtti::find_vtables(mod, ".?AVPlayerCharacter@@")) {
+                if (utility::rtti::get_locator(&table)->offset == 0) {
+                    return reinterpret_cast<void**>(table) + 213;
+                }
+            }
+            return nullptr;
+        }
+    } // namespace PlayerCharacter
+
+    namespace Actor
+    {
+        inline uintptr_t SetLookPitch()
+        {
+            static auto address = FuncRelocation("48 89 5C 24 10 57 48 83 EC 60 C5 F8 29 74 24 50 C5 F8 29 7C 24 40 C5 78 29 4C 24 30 C5 78 29 54 24 20");
+            return address;
+        }
+
+        inline uintptr_t SetYaw()
+        {
+            static auto address = FuncRelocation("48 89 5C 24 08 57 48 83 EC 50 8B B9 F8 00 00 00 48 8B D9 C1 EF 11 83 E7 0F");
+            return address;
+        }
+    } // namespace Actor
 
     namespace FirstPersonState {
         inline uintptr_t GetRotationQuatV() {

@@ -12,6 +12,7 @@
 #include <CreationEngine/models/GameFlow.h>
 #include <CreationEngine/models/ModSettingsStore.h>
 #include <REL/Relocation.h>
+#include <atomic>
 #include <cstdlib>
 #include <glm/gtx/vector_angle.hpp>
 #include <mods/VR.hpp>
@@ -34,9 +35,9 @@ namespace {
     glm::mat4 from_havok_space(const glm::mat4& mat) {
         return permutation_post * mat * permutation_pre;
     }
-    float yaw_offset{0.0f};
 
-
+    std::atomic<float> applied_head_yaw{ 0.0f };
+    bool               head_only_pitch_active{ };
 }
 
 
@@ -67,7 +68,16 @@ bool isValidCamera(RE::NiCamera *pCamera) {
            sceneGraphRoot->starfieldScene.pGalaxyCamera == pCamera;
 }
 
-void CreationEngineCameraManager::InstallHooks() {
+bool CreationEngineCameraManager::InstallHooks()
+{
+    const auto lookPitchSlot = GameStore::MemoryOffsets::PlayerCharacter::ApplyLookPitchSlot();
+    m_setLookPitch           = reinterpret_cast<SetAngle>(GameStore::MemoryOffsets::Actor::SetLookPitch());
+    m_setYaw                 = reinterpret_cast<SetAngle>(GameStore::MemoryOffsets::Actor::SetYaw());
+    if (!lookPitchSlot || !m_setLookPitch || !m_setYaw) {
+        spdlog::error("[LOOK] Native look bindings were not found");
+        return false;
+    }
+
     REL::Relocation<uintptr_t> onNiAVObjectUpdateWorldAddr{GameStore::MemoryOffsets::BSFadeNode::vtable_UpdateWorld()};
     m_onNiAVObjectUpdateWorldHook = std::make_unique<FunctionHook>(onNiAVObjectUpdateWorldAddr.address(),
                                                                    reinterpret_cast<uintptr_t>(&onNiAVObjectUpdateWorld));
@@ -92,8 +102,20 @@ void CreationEngineCameraManager::InstallHooks() {
     m_onScaleformSetViewPortHook = std::make_unique<FunctionHook>(scaleformSetViewPortAddr.address(),
                                                                   reinterpret_cast<uintptr_t>(&onScaleformSetViewPortDetour));
     m_onScaleformSetViewPortHook->create();
-}
 
+    // PointerHook publishes the detour in its constructor; make the original available first.
+    m_applyLookPitch = reinterpret_cast<SetAngle>(*lookPitchSlot);
+    try {
+        m_onApplyLookPitchHook = std::make_unique<PointerHook>(lookPitchSlot, reinterpret_cast<void*>(&onApplyLookPitch));
+    }
+    catch (const std::exception& error) {
+        spdlog::error("[LOOK] Cannot hook the native look update: {}", error.what());
+        return false;
+    }
+    spdlog::info("[LOOK] Native controls installed: slot={:x}, pitch={:x}, yaw={:x}", reinterpret_cast<uintptr_t>(lookPitchSlot), reinterpret_cast<uintptr_t>(m_setLookPitch),
+                 reinterpret_cast<uintptr_t>(m_setYaw));
+    return true;
+}
 
 RE::NiAVObject *getCameraRootNode() {
     auto playerCamera = CreationEngineSingletonManager::GetPlayerCameraSingleton();
@@ -111,49 +133,116 @@ RE::NiAVObject *getCameraRootNode() {
     return nullptr;
 }
 
-void UpdateMesh(RE::NiAVObject* camera) {
-    if (GameFlow::isImmovable() || GameFlow::isControlledByAI()) {
-        return;
+bool isPitchDecoupled()
+{
+    return GameFlow::gStore.internalSettings.decoupledPitch;
+}
+
+void CreationEngineCameraManager::onApplyLookPitch(RE::PlayerCharacter* actor, float pitchDelta)
+{
+    static auto instance = Get();
+    static auto original = instance->m_applyLookPitch;
+    static auto vr       = VR::get();
+    if (actor != CreationEngineSingletonManager::GetPlayerRef()) {
+        return original(actor, pitchDelta);
+    }
+    if (!vr->is_hmd_active() || !GameFlow::isInFirstPerson() || GameFlow::isShowingMenu() || GameFlow::isImmovable() || GameFlow::isControlledByAI() || ModConstants::cameraShake) {
+        head_only_pitch_active = false;
+        return original(actor, pitchDelta);
     }
 
-    if(GameFlow::gStore.internalSettings.decoupledPitch && !(ModConstants::headTrackingType == 0 && GameFlow::isAimingDownSights())) {
-        return;
-    }
-    static auto vr = VR::get();
-    auto camera_quat = RE::NiQuaternion(camera->world.rotate);
-    auto glm_camera_quat = glm::normalize(glm::quat(camera_quat.w, camera_quat.x, camera_quat.y, camera_quat.z));
-
-    auto current_hmd_rotation = vr->get_rotation(0);
-    auto hmd_rotation_quat = glm::normalize(
-            glm::quat_cast(current_hmd_rotation));
-    hmd_rotation_quat = {hmd_rotation_quat.w, hmd_rotation_quat.x, -hmd_rotation_quat.z, hmd_rotation_quat.y};
-    auto quat_out = glm_camera_quat;
-    {
-        if (GameFlow::gStore.internalSettings.pawnControl) {
-            quat_out = glm::rotate(quat_out, -yaw_offset, glm::vec3{0.0f, 0.0f, 1.0f});
+    const auto applied = applied_head_yaw.load(std::memory_order_relaxed);
+    // The movement update calls this even with zero look input, before updating the scene transforms.
+    if (GameFlow::gStore.internalSettings.pawnControl) {
+        const auto head    = to_havok_space(vr->get_rotation(0));
+        const auto heading = std::atan2(head[0].y, head[0].x);
+        const auto delta   = std::remainder(heading - applied, 2.0f * glm::pi<float>());
+        if (delta != 0.0f) {
+            const auto before = actor->data.angle.z;
+            instance->m_setYaw(actor, before - delta);
+            const auto accepted = std::remainder(before - actor->data.angle.z, 2.0f * glm::pi<float>());
+            applied_head_yaw.store(std::remainder(applied + accepted, 2.0f * glm::pi<float>()), std::memory_order_relaxed);
         }
-        quat_out = quat_out * hmd_rotation_quat;
-        camera_quat = RE::NiQuaternion(quat_out.w, quat_out.x, quat_out.y, quat_out.z);
-        camera_quat.ToMatrix(camera->world.rotate);
+    }
+
+    const bool decoupled = isPitchDecoupled();
+    if (decoupled && !head_only_pitch_active) {
+        instance->m_setLookPitch(actor, 0.0f);
+    }
+    head_only_pitch_active = decoupled;
+    if (!decoupled) {
+        original(actor, pitchDelta);
     }
 }
 
-void CreationEngineCameraManager::onNiAVObjectUpdateWorld(RE::NiAVObject *obj, RE::NiUpdateData *a_data) {
-    static auto instance = CreationEngineCameraManager::Get();
-    using func_t = decltype(onNiAVObjectUpdateWorld);
-    static auto original_func = instance->m_onNiAVObjectUpdateWorldHook->get_original<func_t>();
-    static auto vr = VR::get();
-    if (vr->is_hmd_active() && !GameFlow::isShowingMenu()) {
-        auto camera_root = getCameraRootNode();
-        if (obj->parent && camera_root && camera_root == obj->parent) {
-            original_func(obj, a_data);
-            if (!std::strstr(obj->name.c_str(), "Camera")) {
-                UpdateMesh(obj);
-            }
-            return;
+RE::NiQuaternion composeViewRotation(const RE::NiQuaternion& native, const RE::NiQuaternion& head, float appliedYaw)
+{
+    RE::NiMatrix3 rotation;
+    native.ToMatrix(rotation);
+    float pitch, roll, yaw;
+    rotation.ToEulerAnglesXYZ(pitch, roll, yaw);
+    if (isPitchDecoupled()) {
+        pitch = 0.0f;
+    }
+    rotation.FromEulerAnglesXYZ(pitch, roll, yaw - appliedYaw);
+    return RE::NiQuaternion(rotation) * head;
+}
+
+RE::NiPoint3 getCameraPosition(RE::NiAVObject* camera, RE::NiAVObject* root)
+{
+    // The camera's world transform may still be from the previous frame when the weapon rig updates.
+    RE::NiPoint3 position{ };
+    for (auto node = camera; node != root; node = node->parent) {
+        position = node->local.translate + RE::NiQuaternion(node->local.rotate) * (position * node->local.scale);
+    }
+    return root->world.translate + RE::NiQuaternion(root->world.rotate) * (position * root->world.scale);
+}
+
+bool isCameraAttachment(RE::NiAVObject* object, RE::NiAVObject* camera, RE::NiAVObject* root)
+{
+    for (auto branch = camera; branch && branch->parent != root; branch = branch->parent) {
+        if (object->parent == branch->parent) {
+            return object != branch;
         }
     }
+    return false;
+}
+
+void UpdateAttachment(RE::NiAVObject* object, RE::NiAVObject* root, RE::NiAVObject* camera)
+{
+    if (GameFlow::isImmovable() || GameFlow::isControlledByAI() || ModConstants::cameraShake) {
+        return;
+    }
+    static auto vr              = VR::get();
+    const auto  native_rotation = RE::NiQuaternion(root->world.rotate).Normalize();
+    const auto  head            = glm::normalize(glm::quat_cast(to_havok_space(vr->get_rotation(0))));
+    const auto  view_rotation   = composeViewRotation(native_rotation, RE::NiQuaternion(head.w, head.x, head.y, head.z), applied_head_yaw.load(std::memory_order_relaxed));
+    const auto  correction      = (view_rotation * native_rotation.InvertVector()).Normalize();
+    const auto  origin          = getCameraPosition(camera, root);
+    const auto  rotation        = correction * RE::NiQuaternion(object->world.rotate).Normalize();
+    rotation.ToMatrix(object->world.rotate);
+    object->world.translate = origin + correction * (object->world.translate - origin);
+}
+
+void CreationEngineCameraManager::onNiAVObjectUpdateWorld(RE::NiAVObject* obj, RE::NiUpdateData* a_data)
+{
+    static auto instance      = CreationEngineCameraManager::Get();
+    using func_t              = decltype(onNiAVObjectUpdateWorld);
+    static auto original_func = instance->m_onNiAVObjectUpdateWorldHook->get_original<func_t>();
+    static auto vr            = VR::get();
     original_func(obj, a_data);
+    if (vr->is_hmd_active() && !GameFlow::isShowingMenu()) {
+        auto camera_root = getCameraRootNode();
+        if (obj->parent && camera_root) {
+            auto       camera            = CreationEngineSingletonManager::GetPlayerCameraSingleton()->pFirstPersonModeState->cameraRoot;
+            const bool camera_attachment = isCameraAttachment(obj, camera, camera_root);
+            if (obj->parent == camera_root || camera_attachment) {
+                if (camera_attachment || !std::strstr(obj->name.c_str(), "Camera")) {
+                    UpdateAttachment(obj, camera_root, camera);
+                }
+            }
+        }
+    }
 }
 
 void CreationEngineCameraManager::onScaleformSetViewPort(uintptr_t *thisMovie, Scaleform::Gfx::Viewport *viewport) {
@@ -330,46 +419,12 @@ void CreationEngineCameraManager::onFPSGetCameraRotation(RE::FirstPersonState *f
     original_func(fps, quat_out);
     static auto vr = VR::get();
     if (!vr->is_hmd_active() || ModConstants::cameraShake || GameFlow::isShowingMenu()) {
-        yaw_offset = 0.0f;
         return;
     }
     if (!GameFlow::isImmovable() && !GameFlow::isControlledByAI()) {
-        // order of extraction Pitch->Yaw->Roll (Havok X->Z->Y)
-        auto p_player = CreationEngineSingletonManager::GetPlayerRef();
-
-        RE::NiMatrix3 havok_rotation;
-        quat_out->ToMatrix(havok_rotation);
-        float pitch, yaw, roll;
-        havok_rotation.ToEulerAnglesXYZ(pitch, roll, yaw);
-
         auto current_hmd_rotation = vr->get_rotation(0);
         auto rotation_quat = glm::normalize(glm::quat_cast(to_havok_space(current_hmd_rotation)));
         auto ni_hmd_rotation = RE::NiQuaternion(rotation_quat.w, rotation_quat.x, rotation_quat.y, rotation_quat.z);
-        {
-            if (GameFlow::gStore.internalSettings.pawnControl) {
-                yaw -= yaw_offset;
-                havok_rotation.FromEulerAnglesXYZ(pitch, roll, yaw);
-
-                auto new_quat = RE::NiQuaternion(havok_rotation);
-
-                new_quat = new_quat * ni_hmd_rotation;
-
-                auto delta = quat_out->InvertVector() * new_quat;
-                delta.ToMatrix(havok_rotation);
-                float delta_pitch, delta_yaw, delta_roll;
-                havok_rotation.ToEulerAnglesXYZ(delta_pitch, delta_roll, delta_yaw);
-                yaw_offset += delta_yaw;
-                auto corrected_yaw = p_player->data.angle.z - delta_yaw + 2.0f * glm::pi<float>();
-                corrected_yaw = std::fmod(corrected_yaw, 2.0f * glm::pi<float>());
-                p_player->data.angle.z = corrected_yaw;
-            }
-            if (GameFlow::gStore.internalSettings.decoupledPitch && !((ModConstants::headTrackingType == 0 && GameFlow::isAimingDownSights()) || ModConstants::headTrackingType == 2)) {
-                pitch = 0.0f;
-            }
-            havok_rotation.FromEulerAnglesXYZ(pitch, roll, yaw);
-            *quat_out = RE::NiQuaternion(havok_rotation) * ni_hmd_rotation;
-        }
-    } else {
-        yaw_offset = 0.0f;
+        *quat_out = composeViewRotation(*quat_out, ni_hmd_rotation, applied_head_yaw.load(std::memory_order_relaxed));
     }
 }

@@ -13,7 +13,9 @@
 
 std::optional<std::string> CreationEngineEntry::on_initialize()
 {
-    CreationEngineCameraManager::Get()->InstallHooks();
+    if (!CreationEngineCameraManager::Get()->InstallHooks()) {
+        return "Failed to initialize native VR look controls";
+    }
     CreationEngineRendererModule::Get()->InstallHooks();
     CreationEngineInputManager::Get()->Init();
     return Mod::on_initialize();
@@ -40,10 +42,6 @@ void CreationEngineEntry::on_draw_ui()
     if(m_dominant_eye->draw("Dominant Eye"))
     {
         ModConstants::dominantEye = m_dominant_eye->value();
-    }
-    if(m_head_tracking_type->draw("Head Tracking Type"))
-    {
-        ModConstants::headTrackingType = m_head_tracking_type->value();
     }
     if(m_pawn_control_rotation->draw("Pawn Control Rotation"))
     {
@@ -196,7 +194,6 @@ void CreationEngineEntry::on_config_load(const utility::Config& cfg, bool set_de
     }
     ModConstants::dominantEye = m_dominant_eye->value();
     ModConstants::headTrackingMultiplier = m_head_tracking_multiplier->value();
-    ModConstants::headTrackingType = m_head_tracking_type->value();
     GameFlow::gStore.internalSettings.nvidiaAndTAAfix = m_taa_anf_nvidia_fix->value();
     GameFlow::gStore.internalSettings.scaleformViewportHook = m_scaleform_viewport_hook->value();
     if (!m_scaleform_viewport_hook->value()) {
