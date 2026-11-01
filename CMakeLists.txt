@@ -157,22 +157,6 @@ add_custom_command(
     ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/artifact/Mod${BUILD_NAME}/sfvr
 )
 
-if(XBOX_STORE)
-  add_custom_command(
-          TARGET ${PROJECT_NAME}
-          POST_BUILD
-          COMMAND
-          ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> "C:\\XboxGames\\Starfield\\Content\\dxgi.dll"
-  )
-else ()
-  add_custom_command(
-          TARGET ${PROJECT_NAME}
-          POST_BUILD
-          COMMAND
-          ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Starfield\\$<TARGET_FILE_NAME:${PROJECT_NAME}>"
-  )
-endif()
-
 set_property(
   TARGET ${PROJECT_NAME}
   APPEND PROPERTY ADDITIONAL_CLEAN_FILES ${OUTPUT_DLLS} ${OUTPUT_PDBS} ${CPM_SOURCE_CACHE} ${CMAKE_CURRENT_BINARY_DIR}/_deps

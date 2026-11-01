@@ -2,30 +2,25 @@
 
 Starfield VR mod (`starfield2vr`). Builds a proxy `dxgi.dll` that hooks the game. Windows-only, C++23, CMake + Ninja.
 
-## Submodules (read first)
+## Submodules
 
-`git submodule update --init --recursive` partially FAILS: `.gitmodules` points `extern/vrframework` at `https://github.com/mutars/vrframework.git`, which no longer exists (404). The working fork is `https://github.com/Fribur/vrframework.git`. Fix per-clone without touching the tracked `.gitmodules`:
+The build needs only `extern/vrframework`, without its nested submodules:
 
 ```
-git submodule init extern/vrframework
-git config submodule.extern/vrframework.url https://github.com/Fribur/vrframework.git
-git submodule update --recursive extern/vrframework
+git submodule update --init extern/vrframework
 ```
-
-`extern/CommonLibSF` clones fine from its recorded URL.
 
 ## Build
 
-Use the presets in `CMakePresets.json` (generator is Ninja; presets hardcode `C:/Program Files/CMake/bin/cmake.exe`):
+Run in an x64 MSVC developer shell with the tools pinned in `mise.toml`:
 
 ```
-cmake --preset build-release-no-debug-msvc
-cmake --build build/build-release-no-debug-msvc
+mise exec -- cmake --preset build-release-msvc
+mise exec -- cmake --build build/build-release-msvc --target starfield_vr
 ```
 
 - Build dir is `build/<configurePresetName>`.
 - Default `HOOK_METHOD=dxgi` ⇒ output is `dxgi.dll` (a DLL proxy, not an exe).
-- POST_BUILD copies `dxgi.dll` into the hardcoded Starfield install path (`C:\Program Files (x86)\Steam\steamapps\common\Starfield`, or `C:\XboxGames\...` when `XBOX_STORE=ON`). Builds touch those paths; expect failures/no-ops if Starfield isn't installed there.
 - All presets set `USE_STARFIELD_SDK_LITE=ON`, so `extern/CommonLibSF` is NOT compiled — game types come from `sdk-lite/include`. CommonLibSF is only built when `USE_STARFIELD_SDK_LITE=OFF`.
 - `SIGNATURE_SCAN=ON`: game addresses are resolved at runtime from byte patterns / ID offsets in `src/CreationEngine/memory/` (`offsets.h`, `offsets_table.h`). These are Starfield-build-version dependent.
 - CI (`.github/workflows/dev-release.yml`) builds only the `release-no-debug-msvc` preset but with the `Visual Studio 17 2022` generator, then packages OpenXR/OpenVR zips (using `shipping/openxr_loader.dll` / `openvr_api.dll`). Tags trigger a GitHub release.

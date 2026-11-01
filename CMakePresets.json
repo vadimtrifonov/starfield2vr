@@ -21,7 +21,6 @@
         "USE_DXGI_HOOK": "ON",
         "POLYHOOK2_FUNCTION_HOOK": "OFF"
       },
-      "cmakeExecutable": "C:/Program Files/CMake/bin/cmake.exe",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}"
     },
@@ -79,7 +78,7 @@
       "inherits": ["base", "msvc"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/fp:fast /GR- /Gw /O2 /Ob3 /Qpar",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/fp:fast /GR- /Gw /O2 /Ob3 /Qpar /Zi /DNDEBUG",
         "CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO": "/LTCG:INCREMENTAL /OPT:ICF=4"
       }
     },
