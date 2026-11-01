@@ -23,7 +23,6 @@ mise exec -- cmake --build build/build-release-msvc --target starfield_vr
 - Default `HOOK_METHOD=dxgi` ⇒ output is `dxgi.dll` (a DLL proxy, not an exe).
 - All presets set `USE_STARFIELD_SDK_LITE=ON`, so `extern/CommonLibSF` is NOT compiled — game types come from `sdk-lite/include`. CommonLibSF is only built when `USE_STARFIELD_SDK_LITE=OFF`.
 - `SIGNATURE_SCAN=ON`: game addresses are resolved at runtime from byte patterns / ID offsets in `src/CreationEngine/memory/` (`offsets.h`, `offsets_table.h`). These are Starfield-build-version dependent.
-- CI (`.github/workflows/dev-release.yml`) builds only the `release-no-debug-msvc` preset but with the `Visual Studio 17 2022` generator, then packages OpenXR/OpenVR zips (using `shipping/openxr_loader.dll` / `openvr_api.dll`). Tags trigger a GitHub release.
 
 There are no tests. "Verification" = it compiles and loads in-game.
 

@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*-v.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^v\d+\.\d+\.\d+-v\.\d+$') {
+            throw "Release tag must have the form v1.2.3-v.4: $env:GITHUB_REF_NAME"
+          }
+
+      # The build does not use CommonLibSF or vrframework's nested submodules.
+      - name: Fetch vrframework
+        run: git submodule update --init extern/vrframework
+
+      - name: Set up CMake and Ninja
+        uses: jdx/mise-action@v5
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -Arch amd64 -HostArch amd64
+          cmake --preset build-release-msvc
+          cmake --build build/build-release-msvc --target starfield_vr
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $tag = $env:GITHUB_REF_NAME
+          New-Item -ItemType Directory package/Root | Out-Null
+          Copy-Item artifact/ModRelease/sfvr/dxgi.dll, artifact/ModRelease/sfvr/dxgi.pdb, shipping/openxr_loader.dll package/Root
+          Copy-Item LICENSE package
+          $asset = "starfield-vr-openxr-$tag.zip"
+          tar -a -c -f $asset -C package Root LICENSE
+          gh release create $tag $asset --verify-tag --title $tag --generate-notes
