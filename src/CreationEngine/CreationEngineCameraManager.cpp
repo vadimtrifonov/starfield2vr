@@ -6,6 +6,7 @@
 #include "CreationEngineConstants.h"
 #include "CreationEngineRendererModule.h"
 #include "CreationEngineSingletonManager.h"
+#include "FirstPersonPointMapping.h"
 #include "RE/P/PlayerCamera.h"
 #include "RE/S/ScaleformGFxMovie.h"
 #include <CreationEngine/memory/offsets.h>
@@ -102,6 +103,8 @@ bool CreationEngineCameraManager::InstallHooks()
     m_onScaleformSetViewPortHook = std::make_unique<FunctionHook>(scaleformSetViewPortAddr.address(),
                                                                   reinterpret_cast<uintptr_t>(&onScaleformSetViewPortDetour));
     m_onScaleformSetViewPortHook->create();
+
+    FirstPersonPointMapping::Install();
 
     // PointerHook publishes the detour in its constructor; make the original available first.
     m_applyLookPitch = reinterpret_cast<SetAngle>(*lookPitchSlot);

@@ -34,30 +34,18 @@ void GameSettingsComponent::on_device_reset()
         creation_engine_settings->set_setting("fFPWorldFOV:Camera", CreationEngineSettings::SettingType::kINIPrefSetting, vr->get_runtime()->diagonal_fov);
         creation_engine_settings->set_setting("fTPWorldFOV:Camera", CreationEngineSettings::SettingType::kINIPrefSetting, vr->get_runtime()->diagonal_fov);
         creation_engine_settings->set_setting("fTPShipFOV:Camera", CreationEngineSettings::SettingType::kINIPrefSetting, vr->get_runtime()->diagonal_fov);
-        if(!m_override_weapon_fov->value()) {
-            creation_engine_settings->set_setting("fFPGeometryFOV:Camera", CreationEngineSettings::SettingType::kINISetting, vr->get_runtime()->diagonal_fov);
-        }
+        creation_engine_settings->set_setting("fFPGeometryFOV:Camera", CreationEngineSettings::SettingType::kINISetting, vr->get_runtime()->diagonal_fov);
     };
 }
 
 void GameSettingsComponent::on_draw_ui()
 {
+#ifdef _DEBUG
     if (!ImGui::CollapsingHeader(get_name().data())) {
         return;
     }
     ImGui::Separator();
     auto creation_engine_settings = CreationEngineSettings::Get();
-    {
-        m_override_weapon_fov->draw("Override Weapon Fov");
-        if (m_override_weapon_fov->value()) {
-            ImGui::SameLine();
-            if(m_weapon_fov->draw("Weapon Fov")) {
-                creation_engine_settings->set_setting("fFPGeometryFOV:Camera", CreationEngineSettings::SettingType::kINISetting, m_weapon_fov->value());
-            }
-        }
-    }
-
-#ifdef _DEBUG
     {
         //"fNarrowAspectLimit:Display"
         static float wideAspectLimit = creation_engine_settings->get_setting("fWideAspectLimit:Display", CreationEngineSettings::SettingType::kINISetting, 1.5f);
@@ -84,20 +72,4 @@ void GameSettingsComponent::on_draw_ui()
         }
     }
 #endif
-}
-
-void GameSettingsComponent::on_config_load(const utility::Config& cfg, bool set_default) {
-    for (IModValue& option : m_options) {
-        option.config_load(cfg, set_default);
-    }
-    if(m_override_weapon_fov->value()) {
-        CreationEngineSettings::Get()->set_setting("fFPGeometryFOV:Camera", CreationEngineSettings::SettingType::kINISetting, m_weapon_fov->value());
-    }
-}
-
-void GameSettingsComponent::on_config_save(utility::Config& cfg)
-{
-    for (IModValue& option : m_options) {
-        option.config_save(cfg);
-    }
 }

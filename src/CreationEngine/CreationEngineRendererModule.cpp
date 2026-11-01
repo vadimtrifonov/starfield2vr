@@ -6,10 +6,12 @@
 #include "CreationEngineCameraManager.h"
 #include "CreationEngineConstants.h"
 #include "CreationEngineSingletonManager.h"
+#include "FirstPersonLod.h"
 #include "REL/Relocation.h"
 #include <CreationEngine/memory/offsets.h>
 #include <CreationEngine/models/GameFlow.h>
 #include <CreationEngine/models/ModSettingsStore.h>
+#include <RE/C/CameraHandle.h>
 #include <_deps/directxtk12-src/Src/d3dx12.h>
 #include <mods/VR.hpp>
 #include <safetyhook/easy.hpp>
@@ -85,6 +87,8 @@ void CreationEngineRendererModule::InstallHooks()
     REL::Relocation<uintptr_t> taa_vfunc7_hook_addr{ GameStore::MemoryOffsets::CreationRenderer::OnTaaVFunc7() };
     taa_vfunc7_hook = std::make_unique<FunctionHook>(taa_vfunc7_hook_addr.address(), reinterpret_cast<uint64_t>(&CreationEngineRendererModule::onTaaPass));
     taa_vfunc7_hook->create();
+
+    FirstPersonLod::Install();
 }
 
 struct CameraBlockSnapshot
@@ -318,7 +322,19 @@ uintptr_t CreationEngineRendererModule::onUpdateConstantBufferView(uint8_t copyC
     using func_t              = decltype(onUpdateConstantBufferViewDetour);
     static auto original_func = m_onUpdateConstantBufferViewHook->get_original<func_t>();
     static auto vr            = VR::get();
-    auto        result        = original_func(copyCurrentToPast, resetHistory, i2, i3, i4, d, i5, pView);
+    RE::StorageTable::CameraFrustum weaponFrustum;
+    // View kind 1 renders first-person geometry with its own field of view. Give it the world's per-eye perspective, keeping its clipping distances.
+    if (i5 == 1 && vr->is_hmd_active()) {
+        if (const auto camera = CreationEngineSingletonManager::GetSceneGraphRoot()->worldCamera) {
+            weaponFrustum        = *reinterpret_cast<const RE::StorageTable::CameraFrustum*>(i3);
+            weaponFrustum.left   = camera->viewFrustum.left;
+            weaponFrustum.right  = camera->viewFrustum.right;
+            weaponFrustum.top    = camera->viewFrustum.top;
+            weaponFrustum.bottom = camera->viewFrustum.bottom;
+            i3                   = reinterpret_cast<uintptr_t>(&weaponFrustum);
+        }
+    }
+    auto result = original_func(copyCurrentToPast, resetHistory, i2, i3, i4, d, i5, pView);
     //    spdlog::info("update camera blocks {} index {} handles[{},{},{}] st ptr {}", fmt::ptr(pView), indexAfterPresent, cameraHandleId, cameraHandleId2, cameraHandleId3,
     //    fmt::ptr(cameraBlocks->data));
     if (copyCurrentToPast && vr->is_hmd_active() && GameFlow::gStore.internalSettings.nvidiaAndTAAfix) {

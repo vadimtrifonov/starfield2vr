@@ -219,6 +219,17 @@ namespace Steam::MemoryOffsets
             return address_ptr;
         }
 
+        // In the view setup, the call that submits the view records to screen-size LOD selection; rdx points to the records.
+        inline uintptr_t SubmitLodViewsCall()
+        {
+            auto pattern = "48 8D 95 ? ? ? ? C5 F8 77 E8 ? ? ? ? 48 8B 03 48 89 45 ? 48 8B 40 08";
+            static auto address = [&] {
+                const auto match = FuncRelocation(pattern);
+                return match ? match + 0xA : 0;
+            }();
+            return address;
+        }
+
         inline uintptr_t OnTaaVFunc7()
         {
             // ID 497712
@@ -247,6 +258,16 @@ namespace Steam::MemoryOffsets
             auto        pattern     = "48 8B 05 ? ? ? ? 48 8B 48 10 48 85 C9 74 12 48 3B 88 D8 01 00 00";
             static auto address_ptr = InstructionRelocation(pattern, 3, 7, OffsetsTable::GetOffset(937788), 937788);
             return address_ptr;
+        }
+
+        // Moves a first-person point to the world point drawn at the same screen position when the first-person FOV differs from the world's.
+        // bool (PlayerCamera*, const NiPoint3* point, NiPoint3* mapped); returns false without writing mapped when no mapping applies.
+        // Its callers pass the same point as both arguments; they draw beams and weapon aim effects.
+        inline uintptr_t MapFirstPersonPoint()
+        {
+            auto        pattern = "48 89 74 24 18 57 48 83 EC 70 48 8B 41 10 49 8B F0 48 8B FA 48 85 C0 0F 84 ? ? ? ?";
+            static auto address = FuncRelocation(pattern);
+            return address;
         }
 
 //        inline uintptr_t QCameraEquals()
