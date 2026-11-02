@@ -120,8 +120,10 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, int 
     D3D12_RESOURCE_DESC desc = source->GetDesc();
     if (pastBuffer[0] != nullptr) {
         D3D12_RESOURCE_DESC desc2 = pastBuffer[0]->GetDesc();
-        if (desc.Width != desc2.Width || desc.Height != desc2.Height || desc.Format != desc2.Format) {
-            if (desc.Format == desc2.Format && desc.Width <= desc2.Width && desc.Height <= desc2.Height) {
+        const bool sameLayout     = desc.Dimension == desc2.Dimension && desc.Format == desc2.Format && desc.DepthOrArraySize == desc2.DepthOrArraySize
+                                    && desc.MipLevels == desc2.MipLevels && desc.SampleDesc.Count == desc2.SampleDesc.Count && desc.SampleDesc.Quality == desc2.SampleDesc.Quality;
+        if (!sameLayout || desc.Width != desc2.Width || desc.Height != desc2.Height) {
+            if (sameLayout && desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D && desc.Width <= desc2.Width && desc.Height <= desc2.Height) {
                 return false;
             }
             pastBuffer[0].Reset();
@@ -169,6 +171,26 @@ void CreationEngineRendererModule::SwapBuffer(ID3D12GraphicsCommandList* cmdList
     if (ValidateResource(originalBuffer, index)) {
         SaveHistory(cmdList, originalBuffer, index, fc, CanRestoreHistory(index, fc, cameraCut));
     }
+}
+
+void CreationEngineRendererModule::SwapVolumetricHistory(ID3D12GraphicsCommandList* cmdList, RE::CreationRendererPrivate::RenderGraphData* pRenderGraphData, int fc)
+{
+    constexpr int volumeIndex = ModConstants::nearVolumetricHistoryIndex;
+    constexpr int depthIndex  = ModConstants::volumetricDepthHistoryIndex;
+    if (!ModConstants::enabledResourcesToCopy[volumeIndex] || !ModConstants::enabledResourcesToCopy[depthIndex]) {
+        return;
+    }
+    auto volume = pRenderGraphData->getResourceByIndex(volumeIndex, 0);
+    auto depth  = pRenderGraphData->getResourceByIndex(depthIndex, (fc - 1) & 1);
+    if (!ValidateResource(volume, volumeIndex) || !ValidateResource(depth, depthIndex)) {
+        return;
+    }
+    // The near-volumetric filter reprojects its volume history against the previous downsampled depth.
+    // Restoring only one of them pairs histories from different eyes and streaks the fog, so restore both or neither.
+    const bool cameraCut = pRenderGraphData->resetHistory();
+    const bool restore   = CanRestoreHistory(volumeIndex, fc, cameraCut) && CanRestoreHistory(depthIndex, fc, cameraCut);
+    SaveHistory(cmdList, volume, volumeIndex, fc, restore);
+    SaveHistory(cmdList, depth, depthIndex, fc, restore);
 }
 
 void CreationEngineRendererModule::logMemoryUsage(const char* reason)
@@ -254,6 +276,9 @@ void CreationEngineRendererModule::RenderGraphStart(RE::CreationRendererPrivate:
         if (vr->is_hmd_active() && GameFlow::gStore.internalSettings.nvidiaAndTAAfix && ModConstants::enabledResourcesToCopy[1]) {
             auto resource = pRenderGraphData->getResourceByIndex(1, (fc - 1) & 1);
             SwapBuffer(commandList, resource, 1, fc, pRenderGraphData->resetHistory());
+        }
+        if (vr->is_hmd_active() && GameFlow::gStore.internalSettings.nvidiaAndTAAfix) {
+            SwapVolumetricHistory(commandList, pRenderGraphData, fc);
         }
     }
 }
