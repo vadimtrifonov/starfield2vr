@@ -149,6 +149,7 @@ public:
     [[nodiscard]] inline RE::CreationEngineSettings* GetCreationEngineSettings() const { return *m_creationEngineSettings; }
 
     void SwapBuffer(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* originalBuffer, int index, int fc, bool cameraCut);
+    void SwapVolumetricHistory(ID3D12GraphicsCommandList* cmdList, RE::CreationRendererPrivate::RenderGraphData* pRenderGraphData, int fc);
 
     inline static void CopyResource(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* pSrcResource, ID3D12Resource* pDstResource, D3D12_RESOURCE_STATES srcState,
                                     D3D12_RESOURCE_STATES dstState)
