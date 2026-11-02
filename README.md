@@ -10,6 +10,7 @@ For features, prerequisites, and in-game settings, see the [original README](htt
   This replaces the Decoupled Pitch and Aiming Mode settings.
 - When aiming down sights, the weapon is held in front of your dominant eye and moves with your head.
 - The weapon and hands are drawn with the headset's field of view, like the rest of the world.
+- Fixes DLSS ghosting during movement, particularly in ship cockpits.
 - Fixes crashes when returning to the game after switching to another window or minimizing it.
 - Fixes a possible crash when the VR runtime reports an error while drawing a frame.
 
