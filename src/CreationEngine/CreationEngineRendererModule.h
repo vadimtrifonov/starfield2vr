@@ -148,7 +148,7 @@ public:
 
     [[nodiscard]] inline RE::CreationEngineSettings* GetCreationEngineSettings() const { return *m_creationEngineSettings; }
 
-    void SwapBuffer(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* originalBuffer, int index, int sourceSlot, int destSlot);
+    void SwapBuffer(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* originalBuffer, int index, int fc, bool cameraCut);
 
     inline static void CopyResource(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* pSrcResource, ID3D12Resource* pDstResource, D3D12_RESOURCE_STATES srcState,
                                     D3D12_RESOURCE_STATES dstState)
@@ -191,10 +191,14 @@ private:
 
     // SwapBuffer only ever addresses slots (fc-1)&1 and fc&1, so two history slots per target suffice
     ComPtr<ID3D12Resource> m_pastBuffer[12][2];
+    // Render frame last saved into each target's backups; -1 after (re)allocation
+    int m_pastBufferFrame[12]{};
 
     static uintptr_t onTaaPass(RE::CreationRendererPrivate::RenderPass* pPass, RE::CreationRendererPrivate::RenderGraphData* i, RE::CreationRendererPrivate::RenderPassData* i1);
     void             RenderGraphStart(RE::CreationRendererPrivate::RenderGraph* pGraph, RE::CreationRendererPrivate::RenderGraphData* pRenderGraphData, bool before);
-    static bool      ValidateResource(ID3D12Resource* source, ComPtr<ID3D12Resource> pPtr[2]);
+    bool             ValidateResource(ID3D12Resource* source, int index);
+    bool             CanRestoreHistory(int index, int fc, bool cameraCut) const;
+    void             SaveHistory(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* source, int index, int fc, bool restore);
     void             logMemoryUsage(const char* reason);
     static uintptr_t setReflexMarkerInternal(uintptr_t rcx, uint32_t marker, uint32_t oldFrameIndex);
 };
