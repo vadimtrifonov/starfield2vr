@@ -133,11 +133,6 @@ RE::NiAVObject *getCameraRootNode() {
     return nullptr;
 }
 
-bool isPitchDecoupled()
-{
-    return GameFlow::gStore.internalSettings.decoupledPitch;
-}
-
 void CreationEngineCameraManager::onApplyLookPitch(RE::PlayerCharacter* actor, float pitchDelta)
 {
     static auto instance = Get();
@@ -165,13 +160,9 @@ void CreationEngineCameraManager::onApplyLookPitch(RE::PlayerCharacter* actor, f
         }
     }
 
-    const bool decoupled = isPitchDecoupled();
-    if (decoupled && !head_only_pitch_active) {
+    if (!head_only_pitch_active) {
         instance->m_setLookPitch(actor, 0.0f);
-    }
-    head_only_pitch_active = decoupled;
-    if (!decoupled) {
-        original(actor, pitchDelta);
+        head_only_pitch_active = true;
     }
 }
 
@@ -181,10 +172,7 @@ RE::NiQuaternion composeViewRotation(const RE::NiQuaternion& native, const RE::N
     native.ToMatrix(rotation);
     float pitch, roll, yaw;
     rotation.ToEulerAnglesXYZ(pitch, roll, yaw);
-    if (isPitchDecoupled()) {
-        pitch = 0.0f;
-    }
-    rotation.FromEulerAnglesXYZ(pitch, roll, yaw - appliedYaw);
+    rotation.FromEulerAnglesXYZ(0.0f, roll, yaw - appliedYaw);
     return RE::NiQuaternion(rotation) * head;
 }
 

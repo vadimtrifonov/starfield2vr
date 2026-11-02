@@ -47,10 +47,6 @@ void CreationEngineEntry::on_draw_ui()
     {
         GameFlow::gStore.internalSettings.pawnControl = m_pawn_control_rotation->value();
     }
-    if(m_decoupled_pitch->draw("Decoupled Pitch"))
-    {
-        GameFlow::gStore.internalSettings.decoupledPitch = m_decoupled_pitch->value();
-    }
     if(m_head_tracking_multiplier->draw("Head Tracking Sensitivity"))
     {
         ModConstants::headTrackingMultiplier = m_head_tracking_multiplier->value();
@@ -204,7 +200,6 @@ void CreationEngineEntry::on_config_load(const utility::Config& cfg, bool set_de
     GameFlow::gStore.hudSettings.hudScale = m_hud_scale->value();
     GameFlow::gStore.hudSettings.perspective = (int) m_hud_perspective->value();
     GameFlow::gStore.internalSettings.alternativeJoyLayout = m_alternative_joy_layout->value();
-    GameFlow::gStore.internalSettings.decoupledPitch = m_decoupled_pitch->value();
 }
 
 void CreationEngineEntry::on_config_save(utility::Config& cfg)
