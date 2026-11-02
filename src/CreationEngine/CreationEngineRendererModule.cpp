@@ -108,8 +108,9 @@ __int64 CreationEngineRendererModule::onRenderGraphRenderStart(RE::CreationRende
     return result;
 }
 
-bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComPtr<ID3D12Resource> pastBuffer[2])
+bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, int index)
 {
+    auto& pastBuffer = m_pastBuffer[index];
     if (source == nullptr) {
         return false;
     }
@@ -122,6 +123,7 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComP
             }
             pastBuffer[0].Reset();
             pastBuffer[1].Reset();
+            m_pastBufferFrame[index] = -1;
         }
     }
     auto device = g_framework->get_d3d12_hook()->get_device();
@@ -129,6 +131,7 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComP
         return false;
     }
     if (pastBuffer[0] == nullptr || pastBuffer[1] == nullptr) {
+        m_pastBufferFrame[index]         = -1;
         D3D12_HEAP_PROPERTIES heap_props = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
         for (int i = 0; i < 2; i++) {
             if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
@@ -142,15 +145,27 @@ bool CreationEngineRendererModule::ValidateResource(ID3D12Resource* source, ComP
     return true;
 }
 
-void CreationEngineRendererModule::SwapBuffer(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* originalBuffer, int index, int copyFromSlot, int copyToSlot)
+// The next frame renders the other eye, so the backup to restore is the one saved on the previous frame.
+// After skipped frames (menus), a camera cut, or a new allocation, that backup is stale or uninitialized.
+bool CreationEngineRendererModule::CanRestoreHistory(int index, int fc, bool cameraCut) const
 {
-    if (!ValidateResource(originalBuffer, m_pastBuffer[index])) {
-        return;
+    return !cameraCut && fc > 0 && m_pastBufferFrame[index] == fc - 1;
+}
+
+void CreationEngineRendererModule::SaveHistory(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* source, int index, int fc, bool restore)
+{
+    CopyResource(cmdList, source, m_pastBuffer[index][fc & 1].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ);
+    if (restore) {
+        CopyResource(cmdList, m_pastBuffer[index][(fc - 1) & 1].Get(), source, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     }
-    auto saveBuffer       = m_pastBuffer[index][copyToSlot].Get();
-    auto alterFrameBuffer = m_pastBuffer[index][copyFromSlot].Get();
-    CopyResource(cmdList, originalBuffer, saveBuffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_GENERIC_READ);
-    CopyResource(cmdList, alterFrameBuffer, originalBuffer, D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    m_pastBufferFrame[index] = fc;
+}
+
+void CreationEngineRendererModule::SwapBuffer(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* originalBuffer, int index, int fc, bool cameraCut)
+{
+    if (ValidateResource(originalBuffer, index)) {
+        SaveHistory(cmdList, originalBuffer, index, fc, CanRestoreHistory(index, fc, cameraCut));
+    }
 }
 
 void CreationEngineRendererModule::logMemoryUsage(const char* reason)
@@ -235,7 +250,7 @@ void CreationEngineRendererModule::RenderGraphStart(RE::CreationRendererPrivate:
         auto commandList = context->pID3D12CommandList;
         if (vr->is_hmd_active() && GameFlow::gStore.internalSettings.nvidiaAndTAAfix && ModConstants::enabledResourcesToCopy[1]) {
             auto resource = pRenderGraphData->getResourceByIndex(1, (fc - 1) & 1);
-            SwapBuffer(commandList, resource, 1, (fc - 1) & 1, fc & 1);
+            SwapBuffer(commandList, resource, 1, fc, pRenderGraphData->resetHistory());
         }
     }
 }
@@ -375,11 +390,11 @@ uintptr_t CreationEngineRendererModule::onTaaPass(RE::CreationRendererPrivate::R
 
     if (vr->is_hmd_active() && ModConstants::enabledResourcesToCopy[2]) {
         auto resource = pRenderGraphData->getResourceByIndex(2, (fc - 1) & 1);
-        instance->SwapBuffer(commandList, resource, 2, (fc - 1) & 1, fc & 1);
+        instance->SwapBuffer(commandList, resource, 2, fc, pRenderGraphData->resetHistory());
     }
     if (vr->is_hmd_active() && ModConstants::enabledResourcesToCopy[3]) {
         auto resource = pRenderGraphData->getResourceByIndex(3, (fc - 1) & 1);
-        instance->SwapBuffer(commandList, resource, 3, (fc - 1) & 1, fc & 1);
+        instance->SwapBuffer(commandList, resource, 3, fc, pRenderGraphData->resetHistory());
     }
     return result;
 }
