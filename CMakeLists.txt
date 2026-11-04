@@ -52,6 +52,18 @@ file(
 add_library(${PROJECT_NAME} SHARED ${headers} ${sources})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
+find_program(DXC dxc REQUIRED)
+set(OBJECT_HISTORY_SHADER ${CMAKE_CURRENT_BINARY_DIR}/shaders/object_history_cs.h)
+add_custom_command(
+  OUTPUT ${OBJECT_HISTORY_SHADER}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/shaders
+  COMMAND ${DXC} -nologo -T cs_6_0 -E CSMain -O3 -Vn g_object_history_cs -Fh ${OBJECT_HISTORY_SHADER} ${CMAKE_CURRENT_SOURCE_DIR}/shaders/object_history_cs.hlsl
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/object_history_cs.hlsl
+  COMMENT "HLSL object_history_cs.hlsl"
+  VERBATIM
+)
+target_sources(${PROJECT_NAME} PRIVATE ${OBJECT_HISTORY_SHADER})
+
 #target_compile_definitions(common INTERFACE MOTION_VECTOR_REPROJECTION)
 #target_compile_definitions(common INTERFACE VRMOD_EXPERIMENTAL)
 #target_compile_definitions(common INTERFACE DEBUG_PROFILING_ENABLED)

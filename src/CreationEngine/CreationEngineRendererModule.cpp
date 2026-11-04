@@ -7,6 +7,7 @@
 #include "CreationEngineConstants.h"
 #include "CreationEngineSingletonManager.h"
 #include "FirstPersonLod.h"
+#include "ObjectHistory.h"
 #include "REL/Relocation.h"
 #include <CreationEngine/memory/offsets.h>
 #include <CreationEngine/models/GameFlow.h>
@@ -88,6 +89,7 @@ void CreationEngineRendererModule::InstallHooks()
     taa_vfunc7_hook = std::make_unique<FunctionHook>(taa_vfunc7_hook_addr.address(), reinterpret_cast<uint64_t>(&CreationEngineRendererModule::onTaaPass));
     taa_vfunc7_hook->create();
 
+    ObjectHistory::Install();
     FirstPersonLod::Install();
 }
 

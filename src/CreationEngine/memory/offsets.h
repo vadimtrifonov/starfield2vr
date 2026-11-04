@@ -219,6 +219,19 @@ namespace Steam::MemoryOffsets
             return address_ptr;
         }
 
+        // In the GatherGeometryTransforms batch loop, right after the batch's Dispatch.
+        inline uintptr_t GatherTransformsBatchDispatched()
+        {
+            auto pattern = "4D 8B 7C 24 08 49 8B D7 48 8B CB E8 ? ? ? ? 84 C0 74 ? 49 8B 47 08 48 89 9C 24 ? ? ? ? 4C 8B 40 78 48 8B CB E8 ? ? ? ? 90 45 33 C9 45 8D 41 1D 48 8D "
+                           "15 ? ? ? ? 48 8B CB E8 ? ? ? ? 48 8B 4B 60 48 8B 01 41 B9 01 00 00 00 45 8B C1 41 8B D6 FF 50 70 45 33 C9 45 8D 41 1E 48 8D 15 ? ? ? ? 48 8B CB E8 "
+                           "? ? ? ? 90 48 8B CB E8 ? ? ? ? 90 03 FD 85 F6 B8 00 10 00 00 0F 85";
+            static auto address = [&] {
+                const auto match = FuncRelocation(pattern);
+                return match ? match + 0x59 : 0;
+            }();
+            return address;
+        }
+
         // In the view setup, the call that submits the view records to screen-size LOD selection; rdx points to the records.
         inline uintptr_t SubmitLodViewsCall()
         {
