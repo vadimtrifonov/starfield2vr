@@ -6,6 +6,7 @@
 #include "CreationEngineCameraManager.h"
 #include "CreationEngineConstants.h"
 #include "CreationEngineSingletonManager.h"
+#include "ObjectHistory.h"
 #include "REL/Relocation.h"
 #include <CreationEngine/memory/offsets.h>
 #include <CreationEngine/models/GameFlow.h>
@@ -86,6 +87,8 @@ void CreationEngineRendererModule::InstallHooks()
     REL::Relocation<uintptr_t> taa_vfunc7_hook_addr{ GameStore::MemoryOffsets::CreationRenderer::OnTaaVFunc7() };
     taa_vfunc7_hook = std::make_unique<FunctionHook>(taa_vfunc7_hook_addr.address(), reinterpret_cast<uint64_t>(&CreationEngineRendererModule::onTaaPass));
     taa_vfunc7_hook->create();
+
+    ObjectHistory::Install();
 }
 
 struct CameraBlockSnapshot
