@@ -85,9 +85,9 @@ namespace RE
 		float             N00000A89;                     //0x0258
 		float             N000012F9;                     //0x025C
 		float             fov;                           //0x0260
-		float             N00001300;                     //0x0264
-		float             N00000A8B;                     //0x0268
-		float             fovAdj;                        //0x026C
+		float             zoomFov;                       //0x0264
+		float             zoomTargetFov;                 //0x0268
+		float             animationFov;                  //0x026C
 		float             N00000A8C;                     //0x0270
 		float             N0000131E;                     //0x0274
 		float             notViewFov;                    //0x0278
@@ -96,7 +96,7 @@ namespace RE
 		float             N00001324;                     //0x0284
 		float             N0000133D;                     //0x0288
 		float             N00000A8F;                     //0x028C
-		std::uint8_t      N00001340;                     //0x0290
+		std::uint8_t      fovOffsetsEnabled;             //0x0290
 		uint8_t           pad_0291[3];                   //0x0291
 		float             N00000A90;                     //0x0294
 		float             N00001345;                     //0x0298
@@ -126,5 +126,8 @@ namespace RE
 //	static_assert(offsetof(PlayerCamera, N000012DD) == 0xA8);
 	static_assert(offsetof(PlayerCamera, horizontal_rotation) == 0x2C8);
 	static_assert(offsetof(PlayerCamera, fov) == 0x280);
+	static_assert(offsetof(PlayerCamera, zoomFov) == 0x284);
+	static_assert(offsetof(PlayerCamera, animationFov) == 0x28C);
+	static_assert(offsetof(PlayerCamera, fovOffsetsEnabled) == 0x2B0);
 	static_assert(sizeof(PlayerCamera) == 0x2F0);
 }

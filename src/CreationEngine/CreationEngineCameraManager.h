@@ -102,8 +102,6 @@ public:
     void onScaleformMovieSetProjectionMatrix3D(uintptr_t* pInt, Matrix4x4f& mat);
     void onCalcNiFrustum(RE::NiCamera* pCamera, float fov, float aspectRatio, float nearz, float farz, char lodAdjust);
 
-    [[nodiscard]] float get_fov_adjustment() const;
-
 private:
     CreationEngineCameraManager()  = default;
     ~CreationEngineCameraManager() = default;
@@ -134,11 +132,9 @@ private:
     void                          onScaleformSetViewPortInternal(uintptr_t* thisMovie, Scaleform::Gfx::Viewport* viewport);
     static void onFPSGetCameraRotation(RE::FirstPersonState* fps, RE::NiQuaternion* quat_out);
     unsigned int*                 m_globalFrameCount{};
-    float*                        m_globalWorldFov{};
 
     //    glm::vec3                                    prev_euler{ 0.0f, 0.0f, 0.0f };
     glm::quat                                    prev_quat{ 1.0f, 0.0f, 0.0f, 0.0f };
     std::unordered_map<uintptr_t, RE::NiMatrix3> originalRotations{};
-    float                                        m_fov_adjust{ 0.0f };
-    [[nodiscard]] float                          get_head_tracking_multiplier() const;
+    float                                        m_zoom{ 1.0f };
 };

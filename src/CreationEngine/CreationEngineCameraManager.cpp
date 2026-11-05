@@ -3,6 +3,7 @@
 //
 
 #include "CreationEngineCameraManager.h"
+#include "AnimationZoom.h"
 #include "CreationEngineConstants.h"
 #include "CreationEngineRendererModule.h"
 #include "CreationEngineSingletonManager.h"
@@ -105,6 +106,7 @@ bool CreationEngineCameraManager::InstallHooks()
     m_onScaleformSetViewPortHook->create();
 
     FirstPersonPointMapping::Install();
+    AnimationZoom::Install();
 
     // PointerHook publishes the detour in its constructor; make the original available first.
     m_applyLookPitch = reinterpret_cast<SetAngle>(*lookPitchSlot);
@@ -314,13 +316,6 @@ void CreationEngineCameraManager::onSetNimFrustum(RE::NiCamera *pCamera, RE::NiF
     original_func(pCamera, pFrustum);
 }
 
-void aiming_adjustments(Vector4f &frustum, float fov_adjustment) {
-    frustum[0] = std::tanf(std::atanf(frustum[0]) - fov_adjustment);
-    frustum[1] = std::tanf(std::atanf(frustum[1]) + fov_adjustment);
-    frustum[2] = std::tanf(std::atanf(frustum[2]) + fov_adjustment);
-    frustum[3] = std::tanf(std::atanf(frustum[3]) - fov_adjustment);
-}
-
 void CreationEngineCameraManager::onSetNiFrustumInternal(RE::NiCamera *pCamera, RE::NiFrustum *pFrustum) {
     if (!isValidCamera(pCamera)) {
         return;
@@ -331,8 +326,7 @@ void CreationEngineCameraManager::onSetNiFrustumInternal(RE::NiCamera *pCamera, 
     }
     auto eye = vr->get_current_render_eye() == VRRuntime::Eye::LEFT ? 0 : 1;
     auto runtime = vr->get_runtime();
-    Vector4f frustum = runtime->frustums[eye];
-    aiming_adjustments(frustum, get_fov_adjustment());
+    const Vector4f frustum = runtime->frustums[eye] * m_zoom;
     pFrustum->left = frustum[0];
     pFrustum->right = frustum[1];
     pFrustum->top = frustum[2];
@@ -349,27 +343,14 @@ void CreationEngineCameraManager::onCalcNiFrustum(RE::NiCamera *pCamera, float f
     static auto vr = VR::get();
 
     if (vr->is_hmd_active() && CreationEngineSingletonManager::GetSceneGraphRoot()->worldCamera == pCamera) {
-        //        fov = fov + Constants::lodAdjustFov;
-        m_fov_adjust = fov - playerCamera->fov;
+        // Starfield zooms by asking for a narrower FOV than the camera's own, for example through a scope.
+        // Scaling the headset's projection by the same ratio of tangents magnifies the view as much as the game intends.
+        m_zoom      = playerCamera->fov > 0.0f ? std::tan(fov * ModConstants::DEG_TO_RAD / 2.0f) / std::tan(playerCamera->fov * ModConstants::DEG_TO_RAD / 2.0f) : 1.0f;
         vr->m_nearz = nearz;
-        vr->m_farz = farz;
+        vr->m_farz  = farz;
     }
     original_func(pCamera, fov, aspectRatio, nearz, farz, lodAdjust);
 }
-
-float CreationEngineCameraManager::get_fov_adjustment() const {
-    if (GameFlow::gStore.internalSettings.preventZoom) {
-        return 0.0f;
-    }
-    return tanf((m_fov_adjust * ModConstants::DEG_TO_RAD) / 2.0f);
-}
-
-float CreationEngineCameraManager::get_head_tracking_multiplier() const {
-    static auto playerCamera = CreationEngineSingletonManager::GetPlayerCameraSingleton();
-    auto multiplier = (playerCamera->fov + m_fov_adjust) / playerCamera->fov;
-    return multiplier * ModConstants::headTrackingMultiplier;
-}
-
 
 void CreationEngineCameraManager::UpdateWorldCamera() {
     static auto vr = VR::get();

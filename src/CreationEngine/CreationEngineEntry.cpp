@@ -47,10 +47,6 @@ void CreationEngineEntry::on_draw_ui()
     {
         GameFlow::gStore.internalSettings.pawnControl = m_pawn_control_rotation->value();
     }
-    if(m_head_tracking_multiplier->draw("Head Tracking Sensitivity"))
-    {
-        ModConstants::headTrackingMultiplier = m_head_tracking_multiplier->value();
-    }
     if(m_taa_anf_nvidia_fix->draw("Nvidia DLSS and TAA Fix"))
     {
         GameFlow::gStore.internalSettings.nvidiaAndTAAfix = m_taa_anf_nvidia_fix->value();
@@ -59,9 +55,6 @@ void CreationEngineEntry::on_draw_ui()
     {
         GameFlow::gStore.internalSettings.scaleformViewportHook = m_scaleform_viewport_hook->value();
         spdlog::info("[SCALEFORM] viewport rect write {}", m_scaleform_viewport_hook->value() ? "enabled" : "SKIPPED (isolation test)");
-    }
-    if(m_disable_zoom->draw("Prevent Game controlled Zooming")) {
-        GameFlow::gStore.internalSettings.preventZoom = m_disable_zoom->value();
     }
 #if 0
     if(0){
@@ -189,14 +182,12 @@ void CreationEngineEntry::on_config_load(const utility::Config& cfg, bool set_de
         option.config_load(cfg, set_defaults);
     }
     ModConstants::dominantEye = m_dominant_eye->value();
-    ModConstants::headTrackingMultiplier = m_head_tracking_multiplier->value();
     GameFlow::gStore.internalSettings.nvidiaAndTAAfix = m_taa_anf_nvidia_fix->value();
     GameFlow::gStore.internalSettings.scaleformViewportHook = m_scaleform_viewport_hook->value();
     if (!m_scaleform_viewport_hook->value()) {
         spdlog::info("[SCALEFORM] viewport rect write SKIPPED via config (isolation test)");
     }
     GameFlow::gStore.internalSettings.pawnControl = m_pawn_control_rotation->value();
-    GameFlow::gStore.internalSettings.preventZoom = m_disable_zoom->value();
     GameFlow::gStore.hudSettings.hudScale = m_hud_scale->value();
     GameFlow::gStore.hudSettings.perspective = (int) m_hud_perspective->value();
     GameFlow::gStore.internalSettings.alternativeJoyLayout = m_alternative_joy_layout->value();

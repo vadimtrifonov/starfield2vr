@@ -22,7 +22,6 @@ namespace GameFlow
             float flatScreenDistance{1.5f};
             bool nvidiaAndTAAfix{true};
             bool scaleformViewportHook{true};
-            bool preventZoom{false};
             bool alternativeJoyLayout{false};
             bool pawnControl{true};
         } internalSettings{};

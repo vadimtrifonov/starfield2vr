@@ -283,6 +283,15 @@ namespace Steam::MemoryOffsets
             return address;
         }
 
+        // The FOV the world camera is drawn with: the base FOV narrowed by zoom data and weapon animations.
+        // float (PlayerCamera*); max(fov + (fovOffsetsEnabled ? zoomFov + animationFov : 0), 1), leaving out animationFov in some animation states.
+        inline uintptr_t WorldFov()
+        {
+            auto        pattern = "4C 8B DC 53 56 57 48 83 EC 40 C5 F8 29 74 24 30 48 8B F9 C5 FA 10 81 80 02 00 00";
+            static auto address = FuncRelocation(pattern);
+            return address;
+        }
+
 //        inline uintptr_t QCameraEquals()
 //        {
 //            // ID 166081
