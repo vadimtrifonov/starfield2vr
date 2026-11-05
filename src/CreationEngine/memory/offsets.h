@@ -346,6 +346,14 @@ namespace Steam::MemoryOffsets
         return address_ptr;
     }
 
+    // Letterboxes the game's view to fNarrowAspectLimit/fWideAspectLimit:Display, as on a window resize. void (DisplayGameSettings*).
+    inline uintptr_t UpdateLetterbox()
+    {
+        auto        pattern = "48 89 5C 24 10 57 48 83 EC 40 F6 41 21 01 48 8D 51 10 48 8B F9";
+        static auto address = FuncRelocation(pattern);
+        return address;
+    }
+
     //TODO Only required to get command queue, may be not needed
 //    inline uintptr_t GlobalDirectX12Module()
 //    {

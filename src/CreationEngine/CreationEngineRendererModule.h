@@ -48,18 +48,24 @@ namespace RE
         uint64_t            unk0;
         uint64_t            unk1;
         DisplayGameSettings displayGameSettings;
-        uint8_t             pad2[2];
-        int                 windowHeight;
-        int                 windowWidth;
-        int                 textureHeight;
-        int                 textureWidth;
+        uint32_t            height;
+        uint32_t            width;
+        uint32_t            letterboxedHeight;
+        uint32_t            letterboxedWidth;
+        uint8_t             pad44[4];
         HWindowHolder*      pHwindow;
-        uint8_t             pad68[24];
+        uint8_t             pad50;
+        bool                forcedAspect;
+        uint8_t             pad52[22];
         uint64_t            features;
         uint8_t             trainling[1024];
     };
     static_assert(offsetof(CreationEngineSettings, pHwindow) == 0x48);
     static_assert(offsetof(CreationEngineSettings, displayGameSettings) == 0x10);
+    static_assert(offsetof(CreationEngineSettings, height) == 0x34);
+    static_assert(offsetof(CreationEngineSettings, letterboxedWidth) == 0x40);
+    static_assert(offsetof(CreationEngineSettings, forcedAspect) == 0x51);
+    static_assert(offsetof(CreationEngineSettings, features) == 0x68);
 
     struct DlssConstants
     {

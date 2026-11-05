@@ -5,6 +5,7 @@
 #include "CreationEngineRendererModule.h"
 #include "CreationEngineCameraManager.h"
 #include "CreationEngineConstants.h"
+#include "CreationEngineSettings.h"
 #include "CreationEngineSingletonManager.h"
 #include "FirstPersonLod.h"
 #include "ObjectHistory.h"
@@ -320,6 +321,23 @@ void CreationEngineRendererModule::SetWindowSize(int width, int height)
         height  = vr->get_hmd_height();
         if(width == 0 || height == 0) {
             return;
+        }
+    }
+
+    // The game letterboxes its view to the aspect limits when it handles a window resize, which can happen before
+    // GameSettingsComponent::on_device_reset sets the headset's limits; letterbox again once they are set.
+    // Setting the limits before requesting the resize can leave the view black.
+    // While a menu forces its own aspect, its crop is intended; menus recompute the crop when they release it.
+    const auto render = *m_creationEngineSettings;
+    if (render->width == (uint32_t)width && render->height == (uint32_t)height && !render->forcedAspect
+        && (render->letterboxedWidth != render->width || render->letterboxedHeight != render->height))
+    {
+        static auto       settings         = ::CreationEngineSettings::Get();
+        static const auto update_letterbox = reinterpret_cast<void (*)(RE::DisplayGameSettings*)>(GameStore::MemoryOffsets::UpdateLetterbox());
+        const auto        limit            = settings->get_setting("fNarrowAspectLimit:Display", ::CreationEngineSettings::SettingType::kINISetting, 0.0f);
+        if (update_letterbox && limit == (float)width / (float)height) {
+            spdlog::info("Removing the letterbox from {}x{}", render->letterboxedWidth, render->letterboxedHeight);
+            update_letterbox(&render->displayGameSettings);
         }
     }
 
